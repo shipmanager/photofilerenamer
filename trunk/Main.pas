@@ -5,24 +5,39 @@ interface
 uses
   Windows, Messages, SysUtils, Variants, Classes, Graphics, Controls, Forms,
   Dialogs, StdCtrls, Buttons, NxColumns, NxColumnClasses, NxScrollControl,
-  NxCustomGridControl, NxCustomGrid, NxGrid;
+  NxCustomGridControl, NxCustomGrid, NxGrid, Spin, StrUtils, DateUtils;
 
 type
   TFormMain = class(TForm)
     EditDestination: TEdit;
     LabelDestination: TLabel;
-    BitBtnBrowse: TBitBtn;
+    BitBtnBrowseDest: TBitBtn;
     LabelSource: TLabel;
-    ListBoxSource: TListBox;
-    BitBtnAdd: TBitBtn;
-    BitBtnRemove: TBitBtn;
+    BitBtnBrowseSource1: TBitBtn;
+    BitBtnBrowseSource2: TBitBtn;
     BitBtnStart: TBitBtn;
     NextGrid: TNextGrid;
     NxTextColumnSourceFile: TNxTextColumn;
-    NxDateColumnDate: TNxDateColumn;
+    NxDateColumnSourceDate: TNxDateColumn;
     NxTextColumnDestFile: TNxTextColumn;
-    procedure BitBtnAddClick(Sender: TObject);
-    procedure BitBtnRemoveClick(Sender: TObject);
+    EditSource1: TEdit;
+    EditSource2: TEdit;
+    SpinEditDigits: TSpinEdit;
+    SpinEditDelta1Day: TSpinEdit;
+    SpinEditDelta1Month: TSpinEdit;
+    SpinEditDelta1Year: TSpinEdit;
+    SpinEditDelta1Hour: TSpinEdit;
+    SpinEditDelta1Minute: TSpinEdit;
+    SpinEditDelta1Second: TSpinEdit;
+    SpinEditDelta2Day: TSpinEdit;
+    SpinEditDelta2Month: TSpinEdit;
+    SpinEditDelta2Year: TSpinEdit;
+    SpinEditDelta2Hour: TSpinEdit;
+    SpinEditDelta2Minute: TSpinEdit;
+    SpinEditDelta2Second: TSpinEdit;
+    NxDateColumnDestDate: TNxDateColumn;
+    procedure BitBtnBrowseSource1Click(Sender: TObject);
+    procedure BitBtnBrowseSource2Click(Sender: TObject);
     procedure BitBtnStartClick(Sender: TObject);
   private
     { Private declarations }
@@ -36,9 +51,11 @@ var
 
 implementation
 
+uses Exif;
+
 {$R *.dfm}
 
-procedure TFormMain.BitBtnAddClick(Sender: TObject);
+procedure TFormMain.BitBtnBrowseSource1Click(Sender: TObject);
 var s : string;
 begin
   s := InputBox('¬ведите путь', '¬ведите путь', '');
@@ -51,23 +68,36 @@ begin
     Exit;
   end;
 
-  ListBoxSource.Items.Add(s);
-  ListBoxSource.ItemIndex := ListBoxSource.Items.Count - 1;
+  EditSource1.Text := s;
 end;
 
-procedure TFormMain.BitBtnRemoveClick(Sender: TObject);
+procedure TFormMain.BitBtnBrowseSource2Click(Sender: TObject);
+var s : string;
 begin
-  if ListBoxSource.ItemIndex < 0 then Exit;
+  s := InputBox('¬ведите путь', '¬ведите путь', '');
+  if s = '' then Exit;
 
-  ListBoxSource.Items.Delete(ListBoxSource.ItemIndex);
+  if s[Length(s)] <> '\' then s := s + '\';
+  if not DirectoryExists(s) then
+  begin
+    Application.MessageBox(PChar('ѕуть ' + s + ' не существует'), 'ќшибка', MB_ICONERROR);
+    Exit;
+  end;
 
-  if ListBoxSource.Items.Count > 0 then ListBoxSource.ItemIndex := 0;
+  EditSource2.Text := s;
+end;
+
+function ExifToDateTime(s : string) : TDateTime;
+var d : TDateTime;
+begin
+  ExifToDateTime := StrToDateTime(Copy(s, 9, 2) + '.' + Copy(s, 6, 2) + '.' + Copy(s, 1, 4) + ' ' + Copy(s, 12, 2) + ':' + Copy(s, 15, 2) + ':' + Copy(s, 18, 2));
 end;
 
 procedure TFormMain.BitBtnStartClick(Sender: TObject);
 var sr: TSearchRec;
     FileAttrs: integer;
     i : longint;
+    ex : TExif;
 begin
   if EditDestination.Text[Length(EditDestination.Text)] <> '\' then EditDestination.Text := EditDestination.Text + '\';
 
@@ -77,39 +107,55 @@ begin
     Exit;
   end;
 
+  ex := TExif.Create;
+
   FileAttrs := faArchive + faReadOnly + faHidden + faSysFile;
 
   NextGrid.BeginUpdate;
-
   NextGrid.ClearRows;
-  for i := 0 to ListBoxSource.Items.Count - 1 do
+
+  if FindFirst(EditSource1.Text + '*.jpg', FileAttrs, sr) = 0 then
   begin
-    if FindFirst(ListBoxSource.Items.Strings[i] + '*.*', FileAttrs, sr) = 0 then
-    begin
-      repeat
-        if (sr.Attr and FileAttrs) = sr.Attr then
-        begin
-          NextGrid.AddRow;
-          NextGrid.CellByName['NxTextColumnSourceFile', NextGrid.RowCount - 1].AsString   := ListBoxSource.Items.Strings[i] + sr.Name;
-          NextGrid.CellByName['NxDateColumnDate',       NextGrid.RowCount - 1].AsDateTime := FileDateToDateTime(sr.Time);
-        end;
-      until FindNext(sr) <> 0;
-      FindClose(sr);
-    end;
+    repeat
+      NextGrid.AddRow;
+      NextGrid.CellByName['NxTextColumnSourceFile', NextGrid.RowCount - 1].AsString   := EditSource1.Text + sr.Name;
+      ex.ReadFromFile(NextGrid.CellByName['NxTextColumnSourceFile', NextGrid.RowCount - 1].AsString);
+      if ex.Valid then
+      begin
+        NextGrid.CellByName['NxDateColumnSourceDate', NextGrid.RowCount - 1].AsDateTime := ExifToDateTime(ex.DateTime);
+        NextGrid.CellByName['NxDateColumnDestDate',   NextGrid.RowCount - 1].AsDateTime := IncSecond(IncMinute(IncHour(IncYear(IncMonth(IncDay(NextGrid.CellByName['NxDateColumnSourceDate', NextGrid.RowCount - 1].AsDateTime, SpinEditDelta1Day.Value), SpinEditDelta1Month.Value), SpinEditDelta1Year.Value), SpinEditDelta1Hour.Value), SpinEditDelta1Minute.Value), SpinEditDelta1Second.Value);
+      end;
+    until FindNext(sr) <> 0;
+    FindClose(sr);
+  end;
+
+  if FindFirst(EditSource2.Text + '*.jpg', FileAttrs, sr) = 0 then
+  begin
+    repeat
+      NextGrid.AddRow;
+      NextGrid.CellByName['NxTextColumnSourceFile', NextGrid.RowCount - 1].AsString   := EditSource2.Text + sr.Name;
+      ex.ReadFromFile(NextGrid.CellByName['NxTextColumnSourceFile', NextGrid.RowCount - 1].AsString);
+      if ex.Valid then
+      begin
+        NextGrid.CellByName['NxDateColumnSourceDate', NextGrid.RowCount - 1].AsDateTime := ExifToDateTime(ex.DateTime);
+        NextGrid.CellByName['NxDateColumnDestDate',   NextGrid.RowCount - 1].AsDateTime := IncSecond(IncMinute(IncHour(IncYear(IncMonth(IncDay(NextGrid.CellByName['NxDateColumnSourceDate', NextGrid.RowCount - 1].AsDateTime, SpinEditDelta2Day.Value), SpinEditDelta2Month.Value), SpinEditDelta2Year.Value), SpinEditDelta2Hour.Value), SpinEditDelta2Minute.Value), SpinEditDelta2Second.Value);
+      end;
+    until FindNext(sr) <> 0;
+    FindClose(sr);
   end;
 
   NextGrid.EndUpdate;
 
-  NextGrid.ColumnByName['NxDateColumnDate'].SortKind := skAscending;
-  NextGrid.ColumnByName['NxDateColumnDate'].SortType := stDate;
-  NextGrid.ColumnByName['NxDateColumnDate'].Sorted   := True;
+  NextGrid.ColumnByName['NxDateColumnDestDate'].SortKind := skAscending;
+  NextGrid.ColumnByName['NxDateColumnDestDate'].SortType := stDate;
+  NextGrid.ColumnByName['NxDateColumnDestDate'].Sorted   := True;
 
-  for i := 1 to NextGrid.RowCount do
+  for i := 0 to NextGrid.RowCount - 1 do
   begin
-    NextGrid.CellByName['NxTextColumnDestFile'].AsString :=
+    NextGrid.CellByName['NxTextColumnDestFile', i].AsString := EditDestination.Text + RightStr('00000' + IntToStr(i+1), SpinEditDigits.Value) + '.jpg';
   end;
-  
 
+  ex.Free;
 end;
 
 end.
