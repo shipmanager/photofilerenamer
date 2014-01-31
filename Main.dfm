@@ -1,6 +1,6 @@
 object FormMain: TFormMain
-  Left = 189
-  Top = 114
+  Left = 127
+  Top = 378
   Width = 873
   Height = 534
   Caption = #1055#1077#1088#1077#1080#1084#1077#1085#1086#1074#1072#1085#1080#1077' '#1092#1072#1081#1083#1086#1074
@@ -200,7 +200,7 @@ object FormMain: TFormMain
     MaxValue = 31
     MinValue = -31
     TabOrder = 9
-    Value = 1
+    Value = 0
   end
   object SpinEditDelta1Month: TSpinEdit
     Left = 472
@@ -211,7 +211,7 @@ object FormMain: TFormMain
     MaxValue = 12
     MinValue = -12
     TabOrder = 10
-    Value = 1
+    Value = 0
   end
   object SpinEditDelta1Year: TSpinEdit
     Left = 520
@@ -222,7 +222,7 @@ object FormMain: TFormMain
     MaxValue = 5
     MinValue = -5
     TabOrder = 11
-    Value = 1
+    Value = 0
   end
   object SpinEditDelta1Hour: TSpinEdit
     Left = 584
@@ -233,7 +233,7 @@ object FormMain: TFormMain
     MaxValue = 24
     MinValue = -24
     TabOrder = 12
-    Value = 1
+    Value = -2
   end
   object SpinEditDelta1Minute: TSpinEdit
     Left = 632
@@ -255,7 +255,7 @@ object FormMain: TFormMain
     MaxValue = 60
     MinValue = -60
     TabOrder = 14
-    Value = 1
+    Value = 0
   end
   object SpinEditDelta2Day: TSpinEdit
     Left = 424
@@ -299,7 +299,7 @@ object FormMain: TFormMain
     MaxValue = 24
     MinValue = -24
     TabOrder = 18
-    Value = 0
+    Value = 4
   end
   object SpinEditDelta2Minute: TSpinEdit
     Left = 632
@@ -310,7 +310,7 @@ object FormMain: TFormMain
     MaxValue = 60
     MinValue = -60
     TabOrder = 19
-    Value = 0
+    Value = -8
   end
   object SpinEditDelta2Second: TSpinEdit
     Left = 680
@@ -321,6 +321,14 @@ object FormMain: TFormMain
     MaxValue = 60
     MinValue = -60
     TabOrder = 20
-    Value = 0
+    Value = 5
+  end
+  object ProgressBar: TProgressBar
+    Left = 168
+    Top = 128
+    Width = 681
+    Height = 14
+    Smooth = True
+    TabOrder = 21
   end
 end
