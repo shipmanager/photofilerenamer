@@ -47,9 +47,10 @@ type
     { Public declarations }
   end;
 
-
 var
   FormMain: TFormMain;
+  f : file;
+  FSwap : boolean;
 
 implementation
 
@@ -97,6 +98,152 @@ end;
 function DateTimeToExif(d : TDateTime) : string;
 begin
   DateTimeToExif := AnsiReplaceText(DateTimeToStr(d), '.', ':');
+end;
+
+procedure WriteDatesToExif(const FileName, DateTime, DateTimeOriginal, DateTimeDigitized: string);
+type
+  TMarker = packed record
+    Marker  : Word;      //Section marker
+    Len     : Word;      //Length Section
+    Indefin : Array [0..4] of Char; //Indefiner - "Exif" 00, "JFIF" 00 and ets
+    Pad     : Char;      //0x00
+  end;
+
+  TIFDHeader = packed record
+    pad       : Byte; //00h
+    ByteOrder : Word; //II (4D4D) or MM
+    i42       : Word; //2A00 (magic number from the 'Hitchhikers Guide'
+    Offset    : Cardinal; //0th offset IFD
+    Count     : Word;     // number of IFD entries
+  end;
+
+function SwapLong(Value: Cardinal): Cardinal;
+asm bswap eax end;
+
+procedure ReadTag(var tag: TIfdTag);
+begin
+  BlockRead(f, tag, 12);
+  if FSwap then with tag do
+  begin // motorola or intel byte order ?
+    ID  := Swap(ID);
+    Typ := Swap(Typ);
+    Count := SwapLong(Count);
+    if (Typ=1) or (Typ=3) then
+      Offset := (Offset shr 8) and $FF
+    else
+      Offset  := SwapLong(Offset);
+    end
+  else with tag do begin
+    if ID<>$8827 then  //ISO Metering Mode not need conversion
+      if (Typ=1) or (Typ=3) then
+        Offset := Offset and $FF; // other bytes are undefined but maybe not zero
+  end;
+end;
+
+procedure WriteAsci(const Offset, Count : Cardinal; Value : string);
+var
+  fp : LongInt;
+  i  : Word;
+begin
+  showmessage(Value);
+  fp := FilePos(f); //Save file offset
+  Seek(f, Offset);
+  try
+    i := 1;
+    repeat
+      BlockWrite(f, Value[i], 1);
+      inc(i);
+    until (i >= Count);// or (Result[i-1] = #0);
+    //if i <= Count then Result := Copy(Result, 1, i-1);
+  except
+
+  end;
+  Seek(f, fp);     //Restore file offset
+end;
+
+var SOI : Word; //2 bytes SOI marker. FF D8 (Start Of Image)
+    j : TMarker;
+    i : integer;
+    off0 : Cardinal; //Null Exif Offset
+    ifd  : TIFDHeader;
+    tag  : TIfdTag;
+    ifdp : Cardinal;
+    IfdCnt : Word;
+begin
+  System.FileMode := 2;
+
+  AssignFile(f,FileName);
+  Reset(f,1);
+
+  BlockRead(f, SOI, 2);
+  if SOI = $D8FF then //Is this Jpeg
+  begin
+    BlockRead(f,j,9);
+
+    if j.Marker = $E0FF then //JFIF Marker Found
+    begin
+      Seek(f, 20); //Skip JFIF Header
+      BlockRead(f, j, 9);
+    end;
+
+    //Search Exif start marker;
+    if j.Marker <> $E1FF then
+    begin
+      i := 0;
+      repeat
+        BlockRead(f, SOI, 2); //Read bytes.
+        inc(i);
+      until (EOF(f) or (i>1000) or (SOI=$E1FF));
+      //If we find maker
+      if SOI = $E1FF then
+      begin
+        Seek(f, FilePos(f)-2); //return Back on 2 bytes
+        BlockRead(f, j, 9);    //read Exif header
+      end;
+    end;
+
+    if j.Marker = $E1FF then
+    begin //If we found Exif Section. j.Indefin='Exif'.
+      off0 := FilePos(f) + 1;   //0'th offset Exif header
+      BlockRead(f, ifd, 11);  //Read IDF Header
+      FSwap := ifd.ByteOrder=$4D4D; // II or MM  - if MM we have to swap
+      if FSwap then begin
+        ifd.Offset := SwapLong(ifd.Offset);
+        ifd.Count  := Swap(ifd.Count);
+      end;
+      if ifd.Offset <> 8 then begin
+        Seek(f, FilePos(f)+abs(ifd.Offset)-8);
+      end;
+
+      if (ifd.Count=0) then ifd.Count:=100;
+
+      for i := 1 to ifd.Count do begin
+        ReadTag(tag);
+        case tag.ID of
+              0: break;
+              $0132: WriteAsci(tag.Offset+off0, tag.Count, DateTime);
+        end;
+      end;
+
+      if ifdp > 0 then
+      begin
+        Seek(f, ifdp + off0);
+        BlockRead(f, IfdCnt, 2);
+        if FSwap then IfdCnt := swap(IfdCnt);
+        for i := 1 to IfdCnt do
+        begin
+          ReadTag(tag);
+
+          case tag.ID of
+                0: break;
+            $9003: WriteAsci(tag.OffSet+off0,tag.Count, DateTimeOriginal);
+            $9004: WriteAsci(tag.OffSet+off0,tag.Count, DateTimeDigitized);
+          end;
+        end;
+      end;
+    end;
+  end;
+  CloseFile(f);
 end;
 
 procedure TFormMain.BitBtnStartClick(Sender: TObject);
@@ -218,10 +365,14 @@ begin
     CloseFile(FromF);
     CloseFile(ToF);
 
-    //ex.ReadFromFile(NextGrid.CellByName['NxTextColumnDestFile', NextGrid.RowCount - 1].AsString);
-    DateTime          := DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime);
-    DateTimeOriginal  := DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime);
-    DateTimeDigitized := DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime);
+    if NextGrid.CellByName['NxDateColumnSourceDate', i].AsDateTime <> NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime then
+    begin
+      //ex.ReadFromFile(NextGrid.CellByName['NxTextColumnDestFile', NextGrid.RowCount - 1].AsString);
+      //DateTime          := DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime);
+      WriteDatesToExif(NextGrid.CellByName['NxTextColumnDestFile', i].AsString, DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime), DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime), DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime));
+      //DateTimeOriginal  := DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime);
+      //DateTimeDigitized := DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime);
+    end;
 
     ProgressBar.Position := i + 1;
     Application.ProcessMessages;
