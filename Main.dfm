@@ -138,6 +138,7 @@ object FormMain: TFormMain
     object NxDateColumnDestDate: TNxDateColumn
       Color = 16247513
       DefaultValue = '03.12.2008'
+      DefaultWidth = 123
       Header.Caption = #1044#1072#1090#1072
       Header.Alignment = taCenter
       Position = 2
