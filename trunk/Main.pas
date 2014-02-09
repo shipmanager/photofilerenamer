@@ -97,10 +97,10 @@ end;
 
 function DateTimeToExif(d : TDateTime) : string;
 begin
-  DateTimeToExif := AnsiReplaceText(DateTimeToStr(d), '.', ':');
+  DateTimeToExif := FormatFloat('0000',YearOf(d)) + ':' + FormatFloat('00',MonthOf(d)) + ':' + FormatFloat('00',DayOf(d)) + ' ' + FormatFloat('00',HourOf(d)) + ':' + FormatFloat('00',MinuteOf(d)) + ':' + FormatFloat('00',SecondOf(d));
 end;
 
-procedure WriteDatesToExif(const FileName, DateTime, DateTimeOriginal, DateTimeDigitized: string);
+procedure WwriteDatesToExif(const FileName, DateTime, DateTimeOriginal, DateTimeDigitized: string);
 type
   TMarker = packed record
     Marker  : Word;      //Section marker
@@ -369,7 +369,7 @@ begin
     begin
       //ex.ReadFromFile(NextGrid.CellByName['NxTextColumnDestFile', NextGrid.RowCount - 1].AsString);
       //DateTime          := DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime);
-      WriteDatesToExif(NextGrid.CellByName['NxTextColumnDestFile', i].AsString, DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime), DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime), DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime));
+      ex.WriteToFile(NextGrid.CellByName['NxTextColumnDestFile', i].AsString, DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime));//, DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime), DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime));
       //DateTimeOriginal  := DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime);
       //DateTimeDigitized := DateTimeToExif(NextGrid.CellByName['NxDateColumnDestDate', i].AsDateTime);
     end;
@@ -384,3 +384,4 @@ begin
 end;
 
 end.
+
